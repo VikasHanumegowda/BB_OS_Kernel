@@ -1,0 +1,252 @@
+Guideline for Kernel Assignment 1
+=================================
+
+Total points: 100
+
++---------------------+
+| General Guidelines: |
++---------------------+
+
+1) Please note that to ensure uniform grading, all grading must be done
+   on the same machine (i.e., on grader's Ubuntu 12.04 system running
+   inside VirtualBox).
+
+2) The points below are maximum points.  Partial credits may be given.
+
+3) Do the "plus points" first, then do the "minus points".  If there is a
+   MINIMUM set for a "minus points" item, it means that ANY such failure
+   is observed at ANY time during grading, the grader MUST deduct at least
+   that minimum.
+
+4) Please read the student's README first to see if you need to do something
+   different to get their code to work and what the known problems are.
+
+5) The scripts below are for csh/tcsh.  If you use bash, please modify
+   them where necessary.  Or, you can do "tcsh" and then run the scripts.
+
+6) The posted grading guidelines is not perfect.  We will try our best to
+   stick to the grading guidelines.  Sometimes, after we started grading
+   some of the submissions, we realize that we missed something (most often
+   in "minus points").  The bottomline is that we reserve the right to add
+   or change things in the grading guidelines as we see fit.
+
++--------------+
+| Plus points: |
++--------------+
+
+Make sure GDBWAIT=0 and DRIVERS=1 (or DRIVERS=0 if student prefers) in Config.mk.
+
+(A) KASSERT : +35 points
+        Set DRIVERS=1 in Config.mk and invoke kshell from initproc_run().
+        Use DBG=error,temp,print,test in Config.mk for grading.
+
+        Students need to have the following KASSERT statements in their code and
+            at the right places and they need to function correctly (i.e., must
+            place "conforming dbg() calls" right after the KASSERT statements to
+            demonstrate that these KASSERT statements are successfully executed
+            in order to get any credit).
+
+        Please note that if one just starts and stops the kernel, some of the
+            functions below are NOT invoked.  Therefore, students should use TWO
+            back-to-back "conforming dbg() calls" immediately after the
+            corresponding KASSERT statements in these functions where the first
+            one refers to (A) and the 2nd one refers to a test in section (B-E).
+
+    (1) In main/kmain.c:
+
+        (a) In bootstrap():
+            (1 pts) (middle) KASSERT(NULL != curproc); /* make sure that the "idle" process has been created successfully */
+            (1 pts) (middle) KASSERT(PID_IDLE == curproc->p_pid); /* make sure that what has been created is the "idle" process */
+            (1 pts) (middle) KASSERT(NULL != curthr); /* make sure that the thread for the "idle" process has been created successfully */
+
+        (b) In initproc_create():
+            (1 pts) (middle) KASSERT(NULL != /* pointer to the "init" process */);
+            (1 pts) (middle) KASSERT(PID_INIT == /* pointer to the "init" process */->p_pid);
+            (1 pts) (middle) KASSERT(/* pointer to the thread for the "init" process */ != NULL);
+
+    (2) In proc/proc.c:
+
+        (a) In proc_create():
+            (2 pts) (middle) KASSERT(PID_IDLE != pid || list_empty(&_proc_list)); /* pid can only be PID_IDLE if this is the first process */
+            (2 pts) (middle) KASSERT(PID_INIT != pid || PID_IDLE == curproc->p_pid); /* pid can only be PID_INIT when creating from idle process */
+
+        (b) In proc_cleanup():
+            (1 pts) (precondition) KASSERT(NULL != proc_initproc); /* should have an "init" process */
+            (1 pts) (precondition) KASSERT(1 <= curproc->p_pid); /* this process should not be idle process */
+            (1 pts) (precondition) KASSERT(NULL != curproc->p_pproc); /* this process should have parent process */
+            (2 pts) (postcondition) KASSERT(NULL != curproc->p_pproc); /* this process should have parent process */
+
+        (c) In do_waitpid(): /* p is a dead child process */
+            (2 pts) (middle) KASSERT(NULL != p); /* the dead child process should not be NULL */
+            (2 pts) (middle) KASSERT(-1 == pid || p->p_pid == pid); /* should be able to find a valid process ID for the process */
+            (2 pts) (middle) /* thr points to a thread to be destroyed */ KASSERT(KT_EXITED == thr->kt_state);
+            (2 pts) (middle) KASSERT(NULL != p->p_pagedir); /* this process should have a valid pagedir */
+
+    (3) In proc/kthread.c:
+
+        (a) In kthread_create():
+            (2 pts) (precondition) KASSERT(NULL != p); /* should have associated process */
+
+        (b) In kthread_cancel(): /* please use TWO consecutive "conforming dbg() calls" for this */
+            (1 pts) (precondition) KASSERT(NULL != kthr); /* should have thread */
+
+        (c) In kthread_exit():
+            (1 pts) (middle) KASSERT(!curthr->kt_wchan); /* curthr should not be in any queue */
+            (1 pts) (middle) KASSERT(!curthr->kt_qlink.l_next && !curthr->kt_qlink.l_prev); /* queue should be empty */
+            (1 pts) (middle) KASSERT(curthr->kt_proc == curproc);
+
+    (4) In proc/sched.c:
+
+        (a) In sched_wakeup_on(): (let thr be a pointer to a corresponding thread)
+            (1 pts) (middle) KASSERT((thr->kt_state == KT_SLEEP) || (thr->kt_state == KT_SLEEP_CANCELLABLE));
+
+        (b) In sched_make_runnable():
+            (1 pts) (middle) KASSERT(&kt_runq != thr->kt_wchan); /* make sure thread is not in the runq */
+
+    (5) In proc/kmutex.c:
+
+        (a) In kmutex_lock():
+            (1 pts) (precondition) KASSERT(curthr && (curthr != mtx->km_holder));
+
+        (b) In kmutex_lock_cancellable(): /* please use TWO consecutive "conforming dbg() calls" for this */
+            (1 pts) (precondition) KASSERT(curthr && (curthr != mtx->km_holder));
+
+        (c) In kmutex_unlock():
+            (1 pts) (precondition) KASSERT(curthr && (curthr == mtx->km_holder));
+            (1 pts) (postcondition) KASSERT(curthr != mtx->km_holder);
+
+(B) Kshell : +20 points
+        Use DBG=error,temp,test in Config.mk for grading.
+
+        Make sure "help", "echo" and "exit" commands work properly in kshell.
+        Get full credit here if all the tests in (C), (D), and (E) can be
+        invoked and executed separately and correctly from kshell commands.
+
+        You must NOT run kshell in a separate kernel process.  Kshell commands
+        are suppose to be subroutine calls.
+
+(C) Ted Faber's tests (these should be invoked under kshell): +22 points
+        Use DBG=error,temp,test in Config.mk for grading.
+
+        Test using faber_thread_test() in kernel/proc/faber_test.c.
+        Get full credit here if all the printout are correct.  (You need to
+            figure out what printout to expect.)
+
+        faber_thread_test() must run in a separate kernel process and in the foreground.
+        If cannot be invoked under kshell, only half the credit for each test.
+
+        When the prompt is returned, run it again.
+        If cannot run twice in a row (i.e., crashes or hangs during a test), deduct 50%.
+
+    (1) waitpid any test, etc. (4 points)
+    (2) context switch test (1 points)
+    (3) wake me test, etc. (2 points)
+    (4) wake me uncancellable test, etc. (2 points)
+    (5) cancel me test, etc. (4 points)
+    (6) reparenting test, etc. (2 points)
+    (7) show race test, etc. (3 points)
+    (8) kill child procs test (2 points)
+    (9) proc kill all test (2 points)
+
+(D) Sung-Han's tests (these should be invoked under kshell): +13 points
+        Use DBG=error,temp,test in Config.mk for grading.
+
+        Test using kernel/proc/sunghan_test.c.
+        Get full credit here if all the printout are correct.  (You need to
+            figure out what printout to expect.)
+        If cannot be invoked under kshell, only half credit for each test.
+
+    (1) sunghan_test(): producer/consumer test (9 points)
+        sunghan_test() must run in a separate kernel process and in the foreground.
+
+        You should see a bunch of kernel debugging messages about "adding nodes"
+        and "removing nodes".  Eventually, you should see a kernel debugging
+        message saying something like "sunghan_test() terminated".
+
+        When the prompt is returned, run it again.
+        If cannot run twice in a row (i.e., crashes or hangs during a test), deduct 50%.
+
+    (2) sunghan_deadlock_test(): deadlock test (4 points)
+        sunghan_deadlock_test() must run in a separate kernel process and in the foreground.
+
+        Deadlock should occur.  This checks the mutex and the waiting queue of
+        process/thread.  If deadlock occurs, the OS should hang soon (i.e., you
+        should not be able to enter commands into kshell and you should not be
+        able to see "weenix: halted cleanly!") and you shouldn't see other errors.
+        (If you type on the keyboard, you should see the keys you pressed echoed
+        back in the console because echoing is done in the interrupt handler.)
+
+(E) SELF-checks : +10 points
+        Use DBG=error,temp,print,test in Config.mk for grading.
+
+        Every code path must be tested.  It can either be tested when you run any
+        of the above tests or you can use additional tests to demonstrate it (and
+        document it in section (E) of the submitted README file regarding what
+        test to run).  In either case, you must use a correctly labeled dbg()
+        call to demonstrate that every code path can be exercised.
+
+        For every untested code path, take 1 point off. Take 0.5 point off if it
+        is not clear what test to run to exercise it.  Please note that such
+        conforming dbg() call is required in every code path.  You will not get
+        credit for putting such information in a code comment.
+
+
++---------------+
+| Minus points: |
++---------------+
+
+Missing/incomplete required section(s) in README file (procs-README.txt): -10 points (even if lots of comments in code)
+                      deduct 0.5 point each for every missing/incomplete item in README
+
+Submitted binary file : -2 points
+
+Submitted extra (unmodified) file : -2 points
+
+Wrong file location in submission : -2 points if files are not in correct directory
+                      if the submission does not preserve the directory structure,
+                          take 2 points off
+
+Altered or removed top comment block in a .c file : -20 points for each such file
+
+Altered or removed SIGNATURE : -20 points
+
+Not properly indentify which dbg() printout is for which item in the grading guidelines or use dbg_print(...) instead of dbg(DBG_PRINT, ...): -10 points
+                      take 1 point off for every such dbg() printout
+                      for (A), must use dbg(DBG_PRINT, "(GRADING1A X.Y)\n")
+                          where X is a number between 1 and 5,
+                          and Y is a corresponding subtest letter
+                      for (B), must use dbg(DBG_PRINT, "(GRADING1B)\n"), if applicable
+                      for (C), must use dbg(DBG_PRINT, "(GRADING1C)\n"), if applicable
+                      for (D), must use dbg(DBG_PRINT, "(GRADING1D)\n"), if applicable
+                      for (E), must use dbg(DBG_PRINT, "(GRADING1E)\n")
+
+Cannot compile      : -5 to -10, depending on effort to make it work
+                      if cannot generate executable, at least 5 points
+                          will be taken off, up to 10 points off if it
+                          takes a lot to make it work
+                      this assumes that there is a way to compile your
+                          program, if not, you probably wouldn't have
+                          earned any "plus points" anyway
+
+Compiler warnings   : -1 to -3 points
+                      take 1 point off for 1-4 warnings, 2 points off
+                          for 5-8 warnings, 3 points for more
+                      if you disabled compiler warnings, we will take
+                          20 points off
+
+"make clean"        : -2 points if cannot delete all binary files created during compilation
+                      (.o files, .gch files, executable files, etc.)
+
+Kernel panic : -5 to -10 points
+                      depends on how often this happens
+                      if kernel panic almost every time, take 10 points off
+
+Kernel hangs while running tests : -5 to -10 points
+                      depends on how often this happens
+                      if kernel hangs too often, take 10 points off 
+
+Cannot halt kernel cleanly when shutting down : -5 to -10 points
+                      depends on how often this happens
+                      if failed to see the "weenix: halted cleanly" message
+                          most of the time, take 10 points off
+
